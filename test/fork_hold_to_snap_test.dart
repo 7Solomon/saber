@@ -448,6 +448,8 @@ void main() {
         snapped.add(shape!.toStroke(raw));
       }
       final strokeCountBefore = page.strokes.length;
+      final circlesBefore = page.strokes.whereType<CircleStroke>().length;
+      final rectsBefore = page.strokes.whereType<RectangleStroke>().length;
       for (final s in snapped) {
         page.insertStroke(s);
       }
@@ -477,8 +479,14 @@ void main() {
       for (final s in snapped) {
         expect(reloadedJson, contains(equals(s.toJson())));
       }
-      expect(reloadedPage.strokes.whereType<CircleStroke>(), hasLength(1));
-      expect(reloadedPage.strokes.whereType<RectangleStroke>(), hasLength(2));
+      expect(
+        reloadedPage.strokes.whereType<CircleStroke>(),
+        hasLength(circlesBefore + 1),
+      );
+      expect(
+        reloadedPage.strokes.whereType<RectangleStroke>(),
+        hasLength(rectsBefore + 2),
+      );
 
       // The file version is unchanged
       final (json, _) = reloaded.toJson();
