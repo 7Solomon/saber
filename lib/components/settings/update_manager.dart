@@ -8,6 +8,7 @@ import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:open_file/open_file.dart';
 import 'package:saber/components/settings/update_dialog.dart';
+import 'package:saber/data/fork_config.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/saber_version.dart';
 import 'package:saber/data/version.dart' as version;
@@ -19,8 +20,14 @@ abstract class UpdateManager {
     'https://raw.githubusercontent.com/saber-notes/saber/main/lib/data/version.dart',
   );
   static final Uri apiUrl = Uri.parse(
-    'https://api.github.com/repos/saber-notes/saber/releases/latest',
+    'https://api.github.com/repos/${ForkConfig.repo}/releases/latest',
   );
+
+  /// Saber Fork: the automatic check against the upstream [versionUrl] is
+  /// disabled, so the fork never suggests upstream updates.
+  /// Fork updates are checked manually in the settings
+  /// (see `ForkUpdateManager`).
+  static const autoCheckEnabled = false;
 
   /// The availability of an update.
   static final ValueNotifier<UpdateStatus> status = ValueNotifier(.upToDate);
@@ -32,6 +39,7 @@ abstract class UpdateManager {
     bool userTriggered = false,
   }) async {
     if (!userTriggered) {
+      if (!autoCheckEnabled) return;
       if (status.value == .upToDate) {
         // check for updates if not already done
         await stows.shouldCheckForUpdates.waitUntilRead();
@@ -167,6 +175,8 @@ abstract class UpdateManager {
     // Normal platforms get their updates from app stores, so
     // manual update handling is only needed for Windows.
     .windows: RegExp(r'\.exe'),
+    // Saber Fork: APKs of fork releases
+    .android: RegExp(r'SaberFork_.*\.apk$'),
   };
 
   /// Downloads the update file from [downloadUrl] and installs it.

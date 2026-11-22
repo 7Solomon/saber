@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:saber/data/is_this_a_test.dart';
@@ -15,10 +14,10 @@ export 'package:sentry_flutter/sentry_flutter.dart' show SentryWidget;
 ///
 /// This flag will be:
 /// - false if the foss patches were applied before this build
-/// - false on Linux (except in tests)
-/// - true otherwise
+/// - false in Saber Fork builds (so no reports reach the upstream developer),
+///   except in tests
 @pragma('vm:platform-const-if', !kDebugMode)
-bool get isSentryAvailable => !Platform.isLinux || isThisATest;
+bool get isSentryAvailable => isThisATest;
 
 /// Whether Sentry was initialized when the app started.
 ///

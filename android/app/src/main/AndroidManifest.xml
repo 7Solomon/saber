@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Saber Fork: needed to open the package installer for in-app updates -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Needed for saving photos -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <!-- Needed for reading files opened with the app -->
@@ -14,7 +17,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove" />
 
    <application
-        android:label="Saber"
+        android:label="Saber Fork"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
@@ -129,7 +132,7 @@
 
        <provider
            android:name="com.superlist.super_native_extensions.DataProvider"
-           android:authorities="com.adilhanney.saber.SuperClipboardDataProvider"
+           android:authorities="${applicationId}.SuperClipboardDataProvider"
            android:exported="true"
            android:grantUriPermissions="true" >
        </provider>

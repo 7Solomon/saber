@@ -11,8 +11,17 @@ plugins {
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 val fallbackKeystorePropertiesFile = rootProject.file("fallback-key.properties")
+// Saber Fork: CI release builds set FORK_REQUIRE_RELEASE_KEY=true so that the
+// build fails instead of silently falling back to fallback-key.jks.
+// An APK signed with a different key cannot be installed as an update.
+val requireReleaseKey = System.getenv("FORK_REQUIRE_RELEASE_KEY") == "true"
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+} else if (requireReleaseKey) {
+    throw GradleException(
+        "FORK_REQUIRE_RELEASE_KEY is set but android/key.properties is missing. " +
+            "Refusing to fall back to fallback-key.jks.",
+    )
 } else if (fallbackKeystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(fallbackKeystorePropertiesFile))
 }
@@ -29,7 +38,10 @@ android {
 
     defaultConfig {
         // https://flutter.dev/to/review-gradle-config
-        applicationId = "com.adilhanney.saber"
+        // Saber Fork: own application id so the fork is installed next to the
+        // original Saber. NEVER change this again: a different id is a different
+        // app (and has its own, separate notes storage).
+        applicationId = "io.github.solomon7.saberfork"
         // If you change this minSdk, also update patches/pre/remove_proprietary_dependencies.sh.
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
