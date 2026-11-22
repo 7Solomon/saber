@@ -11,6 +11,7 @@ import 'package:saber/components/canvas/_stroke.dart';
 import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/extensions/color_extensions.dart';
 import 'package:saber/data/tools/highlighter.dart';
+import 'package:saber/data/tools/hold_to_snap.dart';
 import 'package:saber/data/tools/laser_pointer.dart';
 import 'package:saber/data/tools/select.dart';
 import 'package:saber/data/tools/shape_pen.dart';
@@ -54,6 +55,7 @@ class CanvasPainter extends CustomPainter {
     for (final stroke in laserStrokes) _drawLaserStroke(canvas, stroke);
     _drawCurrentStroke(canvas);
     _drawDetectedShape(canvas);
+    _drawHoldToSnapPreview(canvas);
     _drawSelection(canvas);
     _drawPageIndicator(canvas, size);
   }
@@ -226,6 +228,23 @@ class CanvasPainter extends CustomPainter {
         final polygon = shape.convertToCanonicalPolygon();
         canvas.drawPath(Path()..addPolygon(polygon, true), shapePaint);
     }
+  }
+
+  /// Saber Fork: preview of [HoldToSnap].
+  void _drawHoldToSnapPreview(Canvas canvas) {
+    // Only on the page that is currently being drawn on
+    if (currentStroke == null) return;
+    final shape = HoldToSnap.preview;
+    if (shape == null) return;
+
+    final color = currentStroke!.color.withInversion(invert);
+    shape.paint(
+      canvas,
+      Paint()
+        ..color = Color.lerp(color, primaryColor, 0.5)!.withValues(alpha: 0.7)
+        ..style = .stroke
+        ..strokeWidth = currentStroke!.options.size,
+    );
   }
 
   void _drawSelection(Canvas canvas) {

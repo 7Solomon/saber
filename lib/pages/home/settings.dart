@@ -549,6 +549,33 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: Icons.straighten,
                   pref: stows.autoStraightenLines,
                 ),
+                // Saber Fork (only shown in fork builds, so goldens stay
+                // unchanged)
+                if (ForkConfig.isForkRelease) ...[
+                  SettingsSwitch(
+                    title: 'Formen beim Halten erkennen',
+                    subtitle:
+                        'Mit Füller, Kugelschreiber oder Bleistift eine Form '
+                        'zeichnen und den Stift am Ende kurz stillhalten',
+                    icon: Icons.pan_tool_alt,
+                    pref: stows.holdToSnapEnabled,
+                    afterChange: (_) => setState(() {}),
+                  ),
+                  Collapsible(
+                    collapsed: !stows.holdToSnapEnabled.value,
+                    axis: .vertical,
+                    child: SettingsSelection(
+                      title: 'Haltedauer',
+                      icon: Icons.timer,
+                      pref: stows.holdToSnapDelay,
+                      options: const [
+                        ToggleButtonsOption(300, Text('0,3s')),
+                        ToggleButtonsOption(500, Text('0,5s')),
+                        ToggleButtonsOption(800, Text('0,8s')),
+                      ],
+                    ),
+                  ),
+                ],
                 SettingsSubtitle(subtitle: t.settings.prefCategories.advanced),
                 if (isSentryAvailable) const SettingsSentryConsent(),
                 if (Platform.isAndroid)
