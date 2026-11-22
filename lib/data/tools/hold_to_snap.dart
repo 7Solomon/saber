@@ -42,6 +42,14 @@ abstract class HoldToSnap {
   /// Rectangles whose sides differ by at most this fraction become squares.
   static const squareTolerance = 0.12;
 
+  /// A stroke whose end is closer to its start than this fraction of its
+  /// size is considered closed.
+  static const closedThreshold = 0.2;
+
+  /// Strokes with fewer points are resampled before recognition
+  /// (the $1 recognizer needs at least 64 points).
+  static const minRecognizerPoints = 96;
+
   /// The currently previewed shape, or null.
   static SnapShape? get preview => _preview;
   static SnapShape? _preview;
@@ -126,14 +134,30 @@ abstract class HoldToSnap {
     final bounds = _boundingBox(points);
     if (max(bounds.width, bounds.height) < minSize) return null;
 
+    // A closed stroke (end near start) is never a line. The $1 line check
+    // also divides by zero when start == end, so exclude it in that case.
+    final isClosed =
+        (points.last - points.first).distance <
+        closedThreshold * max(bounds.width, bounds.height);
+
     final RecognizedUnistroke? recognized;
     try {
-      recognized = stroke.detectShape();
+      recognized = recognizeUnistroke(
+        // The recognizer needs at least 64 points
+        resample(points, minRecognizerPoints),
+        overrideReferenceUnistrokes: isClosed
+            ? default$1Unistrokes
+                  .where((u) => u.name != DefaultUnistrokeNames.line)
+                  .toList()
+            : null,
+      );
     } catch (e) {
       log.warning('Shape recognition failed: $e');
       return null;
     }
-    if (recognized == null || recognized.score < minScore) return null;
+    // `!(a >= b)` also rejects NaN scores
+    if (recognized == null || !(recognized.score >= minScore)) return null;
+    if (isClosed && recognized.name == DefaultUnistrokeNames.line) return null;
 
     switch (recognized.name) {
       case DefaultUnistrokeNames.line:
@@ -153,6 +177,45 @@ abstract class HoldToSnap {
       case null:
         return null;
     }
+  }
+
+  /// Returns [points] resampled to [count] points evenly spaced along the
+  /// path, if there are fewer than [count] points. Otherwise returns
+  /// [points] unchanged.
+  @visibleForTesting
+  static List<Offset> resample(List<Offset> points, int count) {
+    if (points.length >= count || points.length < 2) return points;
+
+    var totalLength = 0.0;
+    for (var i = 1; i < points.length; i++) {
+      totalLength += (points[i] - points[i - 1]).distance;
+    }
+    if (totalLength <= 0) return points;
+
+    final interval = totalLength / (count - 1);
+    final result = <Offset>[points.first];
+    var accumulated = 0.0;
+    var prev = points.first;
+    var i = 1;
+    while (i < points.length && result.length < count - 1) {
+      final next = points[i];
+      final segment = (next - prev).distance;
+      if (accumulated + segment >= interval && segment > 0) {
+        final t = (interval - accumulated) / segment;
+        final point = Offset.lerp(prev, next, t)!;
+        result.add(point);
+        prev = point;
+        accumulated = 0;
+      } else {
+        accumulated += segment;
+        prev = next;
+        i++;
+      }
+    }
+    while (result.length < count) {
+      result.add(points.last);
+    }
+    return result;
   }
 
   /// Turns [rect] into a square if its sides differ by at most

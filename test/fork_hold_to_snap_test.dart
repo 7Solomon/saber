@@ -175,6 +175,36 @@ void main() {
       expect((shape as SnapPolygon).vertices.length, greaterThanOrEqualTo(3));
     });
 
+    test('resample', () {
+      final points = [Offset.zero, const Offset(100, 0)];
+      final resampled = HoldToSnap.resample(points, 11);
+      expect(resampled.length, 11);
+      expect(resampled.first, Offset.zero);
+      expect(resampled.last.dx, closeTo(100, 1e-9));
+      expect(resampled[5].dx, closeTo(50, 1e-9));
+      final many = List.generate(200, (i) => Offset(i.toDouble(), 0));
+      expect(HoldToSnap.resample(many, 96), same(many));
+    });
+
+    test('quickly drawn line with few points', () {
+      final shape = HoldToSnap.detect(
+        _stroke(
+          _polyline([
+            const Offset(100, 200),
+            const Offset(400, 260),
+          ], spacing: 25),
+        ),
+      );
+      expect(shape, isA<SnapLine>());
+    });
+
+    test('exactly closed shapes are never lines', () {
+      final shape = HoldToSnap.detect(
+        _stroke(_rect(const Rect.fromLTWH(100, 100, 200, 200))),
+      );
+      expect(shape, isA<SnapRect>());
+    });
+
     test('too few points', () {
       expect(
         HoldToSnap.detect(_stroke([Offset.zero, const Offset(300, 0)])),
