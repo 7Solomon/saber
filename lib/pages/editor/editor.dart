@@ -43,6 +43,7 @@ import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/_tool.dart';
 import 'package:saber/data/tools/eraser.dart';
 import 'package:saber/data/tools/highlighter.dart';
+import 'package:saber/data/tools/hold_to_snap.dart';
 import 'package:saber/data/tools/laser_pointer.dart';
 import 'package:saber/data/tools/pen.dart';
 import 'package:saber/data/tools/pencil.dart';
@@ -567,6 +568,11 @@ class EditorState extends State<Editor> {
     history.canRedo = false;
 
     if (currentTool is Pen) {
+      // Saber Fork: hold to snap needs the zoom level and a way to repaint
+      HoldToSnap.configure(
+        scale: _transformationController.value.approxScale,
+        onPreviewChanged: page.redrawStrokes,
+      );
       (currentTool as Pen).onDragStart(
         position,
         page,
@@ -772,6 +778,7 @@ class EditorState extends State<Editor> {
 
         if (stows.autoStraightenLines.value &&
             currentTool is! ShapePen &&
+            !HoldToSnap.lastStrokeWasSnapped &&
             newStroke.isStraightLine()) {
           newStroke.convertToLine();
         }

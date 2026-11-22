@@ -6,6 +6,7 @@ import 'package:saber/data/editor/page.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/tools/_tool.dart';
 import 'package:saber/data/tools/highlighter.dart';
+import 'package:saber/data/tools/hold_to_snap.dart';
 import 'package:saber/data/tools/pencil.dart';
 import 'package:saber/i18n/strings.g.dart';
 import 'package:sbn/tool_id.dart';
@@ -75,12 +76,22 @@ class Pen extends Tool {
     _currentPen = currentPen;
   }
 
+  /// Saber Fork: whether this pen supports [HoldToSnap].
+  /// Only the normal pens: not the highlighter or the shape pen
+  /// (which has its own shape recognition).
+  bool get supportsHoldToSnap => switch (toolId) {
+    .fountainPen || .ballpointPen || .pencil => true,
+    _ => false,
+  };
+
   void onDragStart(
     Offset position,
     EditorPage page,
     int pageIndex,
     double? pressure,
   ) {
+    HoldToSnap.reset();
+    HoldToSnap.lastStrokeWasSnapped = false;
     currentStroke = Stroke(
       color: color,
       pressureEnabled: pressureEnabled,
@@ -93,17 +104,30 @@ class Pen extends Tool {
   }
 
   void onDragUpdate(Offset position, double? pressure) {
-    currentStroke?.addPoint(position, pressure);
+    final stroke = currentStroke;
+    stroke?.addPoint(position, pressure);
+    if (stroke != null && supportsHoldToSnap) {
+      HoldToSnap.onPoint(stroke, position);
+    }
   }
 
   Stroke? onDragEnd() {
+    final snapShape = supportsHoldToSnap ? HoldToSnap.finish() : null;
+    HoldToSnap.lastStrokeWasSnapped = false;
+
     final stroke = currentStroke;
     currentStroke = null;
     if (stroke == null) return null;
 
-    return stroke
+    stroke
       ..options.isComplete = true
       ..markPolygonNeedsUpdating();
+
+    if (snapShape != null && stroke.length >= 2) {
+      HoldToSnap.lastStrokeWasSnapped = true;
+      return snapShape.toStroke(stroke);
+    }
+    return stroke;
   }
 
   /// The default stroke options.

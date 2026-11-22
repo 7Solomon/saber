@@ -23,6 +23,9 @@ class Stroke {
   bool get isEmpty => points.isEmpty;
   int get length => points.length;
 
+  /// Saber Fork: read-only view of [points] (used by hold to snap).
+  List<PointVector> get pointsView => UnmodifiableListView(points);
+
   int pageIndex;
   HasSize page;
   final ToolId toolId;

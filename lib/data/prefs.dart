@@ -171,6 +171,17 @@ class Stows {
     true,
     volatile: !_isOnMainIsolate,
   );
+  // Saber Fork: hold the stylus still to snap to a shape
+  final holdToSnapEnabled = PlainStow(
+    'fork_holdToSnapEnabled',
+    true,
+    volatile: !_isOnMainIsolate,
+  );
+  final holdToSnapDelay = PlainStow(
+    'fork_holdToSnapDelay',
+    500,
+    volatile: !_isOnMainIsolate,
+  );
 
   final printPageIndicators = PlainStow(
     'printPageIndicators',
