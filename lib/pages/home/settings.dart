@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/components/navbar/responsive_navbar.dart';
 import 'package:saber/components/settings/app_info.dart';
+import 'package:saber/components/settings/fork_update_dialog.dart';
 import 'package:saber/components/settings/nextcloud_profile.dart';
 import 'package:saber/components/settings/settings_button.dart';
 import 'package:saber/components/settings/settings_color.dart';
@@ -24,6 +25,7 @@ import 'package:saber/components/theming/saber_theme.dart';
 import 'package:saber/components/theming/uni_icon.dart';
 import 'package:saber/data/file_manager/file_manager.dart';
 import 'package:saber/data/flavor_config.dart';
+import 'package:saber/data/fork_config.dart';
 import 'package:saber/data/is_this_a_test.dart';
 import 'package:saber/data/locales.dart';
 import 'package:saber/data/prefs.dart';
@@ -191,6 +193,7 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 const NextcloudProfile(),
                 const Padding(padding: .all(8), child: AppInfo()),
+                if (ForkConfig.isForkRelease) const ForkUpdateButton(),
                 SettingsSubtitle(subtitle: t.settings.prefCategories.general),
                 SettingsDropdown(
                   title: t.settings.prefLabels.locale,
@@ -571,9 +574,10 @@ class _SettingsPageState extends State<SettingsPage> {
                       }
                     },
                   ),
-                if (requiresManualUpdates ||
-                    stows.shouldCheckForUpdates.value !=
-                        stows.shouldCheckForUpdates.defaultValue) ...[
+                if (!ForkConfig.isForkRelease &&
+                    (requiresManualUpdates ||
+                        stows.shouldCheckForUpdates.value !=
+                            stows.shouldCheckForUpdates.defaultValue)) ...[
                   SettingsSwitch(
                     title: t.settings.prefLabels.shouldCheckForUpdates,
                     icon: Icons.system_update,

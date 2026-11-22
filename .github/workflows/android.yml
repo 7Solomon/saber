@@ -1,15 +1,19 @@
 name: Build for Android
 
+# Saber Fork: this upstream workflow is disabled in the fork and can only
+# be started manually. Original triggers (kept for easier upstream merges):
+# on:
+#   # Enable manual run
+#   workflow_dispatch:
+#   push:
+#     tags:
+#       - "**"
+#     branches:
+#       - "**"
+#     paths:
+#       - .github/workflows/android.yml
 on:
-  # Enable manual run
   workflow_dispatch:
-  push:
-    tags:
-      - "**"
-    branches:
-      - "**"
-    paths:
-      - .github/workflows/android.yml
 
 jobs:
   build-android:

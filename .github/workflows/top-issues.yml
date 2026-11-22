@@ -1,12 +1,16 @@
 name: Top issues
+# Saber Fork: this upstream workflow is disabled in the fork and can only
+# be started manually. Original triggers (kept for easier upstream merges):
+# on:
+#   workflow_dispatch:
+#   push:
+#     paths:
+#       - .github/workflows/top-issues.yml
+#   schedule:
+#     # every day at 10:50 am (random time to avoid spikes in GitHub Actions usage)
+#     - cron: "50 10 * * *"
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/top-issues.yml
-  schedule:
-    # every day at 10:50 am (random time to avoid spikes in GitHub Actions usage)
-    - cron: "50 10 * * *"
 
 permissions:
   actions: read

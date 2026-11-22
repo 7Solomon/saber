@@ -66,3 +66,9 @@ coverage/
 
 # temp files for fdroid pubspec.lock
 /tmpfdroid/
+
+# Saber Fork: never commit signing keys
+*.jks
+*.keystore
+*.jks.b64
+key.properties

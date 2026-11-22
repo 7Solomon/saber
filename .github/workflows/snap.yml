@@ -1,15 +1,19 @@
 name: Build unofficial snap
 
+# Saber Fork: this upstream workflow is disabled in the fork and can only
+# be started manually. Original triggers (kept for easier upstream merges):
+# on:
+#   workflow_dispatch:
+#   push:
+#     tags:
+#       - "**"
+#     branches:
+#       - "**"
+#     paths:
+#       - .github/workflows/snap.yml
+#       - snap/snapcraft.yaml
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "**"
-    branches:
-      - "**"
-    paths:
-      - .github/workflows/snap.yml
-      - snap/snapcraft.yaml
 
 jobs:
   build-snap:

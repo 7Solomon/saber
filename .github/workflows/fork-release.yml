@@ -1,0 +1,319 @@
+name: Saber Fork release (Android)
+
+# Builds a signed FOSS APK of the Saber Fork and publishes it as a GitHub
+# release. See docs/FORK_RELEASE.md and docs/FORK_SIGNING.md.
+#
+# Tag format: v<upstream-version>-fork.<N>, e.g. v1.38.0-fork.1
+#   --build-name   = 1.38.0-fork.1
+#   --build-number = upstream buildNumber * 100 + N  (e.g. 13800001)
+
+on:
+  push:
+    tags:
+      - "v*-fork.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create, e.g. v1.38.0-fork.1 (created on the selected branch's latest commit)"
+        required: true
+        type: string
+
+concurrency:
+  group: fork-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Validate tag, version and secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      build_name: ${{ steps.version.outputs.build_name }}
+      build_number: ${{ steps.version.outputs.build_number }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Require signing secrets
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+        run: |
+          missing=""
+          [ -n "$SIGNING_KEY" ] || missing="$missing SIGNING_KEY"
+          [ -n "$KEY_STORE_PASSWORD" ] || missing="$missing KEY_STORE_PASSWORD"
+          [ -n "$KEY_PASSWORD" ] || missing="$missing KEY_PASSWORD"
+          [ -n "$ALIAS" ] || missing="$missing ALIAS"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing signing secrets:$missing. Refusing to build (see docs/FORK_SIGNING.md)."
+            exit 1
+          fi
+
+      - name: Parse tag and compute version
+        id: version
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="$INPUT_TAG"
+          else
+            tag="${GITHUB_REF#refs/tags/}"
+          fi
+          tag="$(echo "$tag" | xargs)"
+
+          if ! [[ "$tag" =~ ^v([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{1,2})-fork\.([0-9]{1,2})$ ]]; then
+            echo "::error::Tag '$tag' does not match v<major>.<minor>.<patch>-fork.<N> (e.g. v1.38.0-fork.1)"
+            exit 1
+          fi
+          major=$((10#${BASH_REMATCH[1]}))
+          minor=$((10#${BASH_REMATCH[2]}))
+          patch=$((10#${BASH_REMATCH[3]}))
+          fork=$((10#${BASH_REMATCH[4]}))
+          if [ "$fork" -lt 1 ] || [ "$fork" -gt 99 ]; then
+            echo "::error::Fork number must be between 1 and 99, got $fork"
+            exit 1
+          fi
+
+          upstreamName="$major.$minor.$patch"
+          versionDartName=$(grep -oP "(?<=buildName = ').*(?=')" lib/data/version.dart)
+          if [ "$upstreamName" != "$versionDartName" ]; then
+            echo "::error::Tag upstream version $upstreamName does not match lib/data/version.dart ($versionDartName)"
+            exit 1
+          fi
+
+          upstreamNumber=$((major * 100000 + minor * 1000 + patch * 10))
+          buildNumber=$((upstreamNumber * 100 + fork))
+          buildName="$upstreamName-fork.$fork"
+          echo "Tag: $tag, build name: $buildName, build number: $buildNumber"
+
+          # The build number (= Android versionCode) must be strictly increasing,
+          # otherwise Android refuses to install the update.
+          previousMax=0
+          previousTag=""
+          for t in $(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[].tag_name'); do
+            if [ "$t" = "$tag" ]; then
+              echo "::error::A release for $tag already exists"
+              exit 1
+            fi
+            if [[ "$t" =~ ^v([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{1,2})-fork\.([0-9]{1,2})$ ]]; then
+              n=$(( (10#${BASH_REMATCH[1]} * 100000 + 10#${BASH_REMATCH[2]} * 1000 + 10#${BASH_REMATCH[3]} * 10) * 100 + 10#${BASH_REMATCH[4]} ))
+              if [ "$n" -gt "$previousMax" ]; then previousMax=$n; previousTag=$t; fi
+            fi
+          done
+          echo "Previous release: ${previousTag:-none} ($previousMax)"
+          if [ "$buildNumber" -le "$previousMax" ]; then
+            echo "::error::Build number $buildNumber is not greater than the previous release $previousTag ($previousMax)"
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "build_name=$buildName" >> "$GITHUB_OUTPUT"
+          echo "build_number=$buildNumber" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Run Flutter tests
+    needs: prepare
+    runs-on: ubuntu-latest
+    container: ghcr.io/saber-notes/saber_test_env:latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Add Git safe directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Setup Flutter
+        uses: adil192/setup-flutter-submodule@v3
+        with:
+          flutter-path: submodules/flutter
+          no-save-caches: true
+
+      - name: Disable Flutter CLI animations
+        run: flutter config --no-cli-animations
+
+      - run: flutter pub get
+
+      - name: Download Apple fonts
+        run: dart run golden_screenshot:download_apple_fonts
+
+      - name: Run tests
+        run: flutter test --no-pub
+
+      - name: Ensure test failures directory exists
+        if: failure()
+        run: mkdir -p test/failures
+
+      - name: Upload test failures
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: SaberFork-test-failures
+          path: test/failures
+
+  build:
+    name: Build signed FOSS APK and release
+    needs: [prepare, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 60
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      BUILD_NAME: ${{ needs.prepare.outputs.build_name }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+      APPLICATION_ID: io.github.solomon7.saberfork
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: "./.github/shared_workflows/install_apt_dependencies"
+
+      - name: Setup Flutter
+        uses: adil192/setup-flutter-submodule@v3
+        with:
+          flutter-path: submodules/flutter
+          no-save-caches: true
+
+      - name: Setup keystore (own key only, never the fallback key)
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SIGNING_KEY" ] || [ -z "$KEY_STORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ] || [ -z "$ALIAS" ]; then
+            echo "::error::Signing secrets missing"
+            exit 1
+          fi
+          echo "$SIGNING_KEY" | base64 -d > android/android.keystore
+          {
+            echo "storePassword=$KEY_STORE_PASSWORD"
+            echo "keyPassword=$KEY_PASSWORD"
+            echo "keyAlias=$ALIAS"
+            echo "storeFile=../android.keystore"
+          } > android/key.properties
+          # Make sure the fallback key can never be used by accident.
+          rm -f android/fallback-key.properties android/fallback-key.jks
+
+          # Remember the certificate fingerprint of the provided key
+          keytool -list -v -keystore android/android.keystore \
+            -storepass "$KEY_STORE_PASSWORD" -alias "$ALIAS" \
+            | grep -m1 'SHA256:' | sed 's/.*SHA256: *//' | tr -d ':' | tr 'A-F' 'a-f' > expected_cert_sha256.txt
+          if ! grep -qE '^[0-9a-f]{64}$' expected_cert_sha256.txt; then
+            echo "::error::Could not read the certificate from the provided keystore (wrong password/alias?)"
+            exit 1
+          fi
+
+      - name: Setup Android build tools
+        run: |
+          ANDROID_NDK=/usr/local/lib/android/sdk/ndk/29.0.14206865
+          echo "ANDROID_NDK=$ANDROID_NDK" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK" >> $GITHUB_ENV
+
+          echo "JAVA_HOME=$JAVA_HOME_25_X64" >> $GITHUB_ENV
+
+      - name: Disable Flutter CLI animations
+        run: flutter config --no-cli-animations
+
+      - name: Apply FOSS patches
+        run: |
+          ./patches/pre/remove_proprietary_dependencies.sh
+          patch pubspec.lock < patches/pre/pubspec-fdroid.lock.patch
+
+      - name: Build apk
+        env:
+          FORK_REQUIRE_RELEASE_KEY: "true"
+        run: |
+          flutter build apk --release \
+            --build-name="$BUILD_NAME" \
+            --build-number="$BUILD_NUMBER" \
+            --dart-define=FORK_BUILD_NUMBER="$BUILD_NUMBER" \
+            --dart-define=UPDATE_CHECK=false
+
+      - name: Verify APK (signature, package name, version code)
+        env:
+          PINNED_CERT: ${{ vars.SIGNING_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          buildTools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+
+          "$buildTools/apksigner" verify --print-certs "$apk" > certs.txt
+          cat certs.txt
+          actual=$(grep -m1 'certificate SHA-256 digest:' certs.txt | sed 's/.*digest: *//' | tr 'A-F' 'a-f')
+          expected=$(cat expected_cert_sha256.txt)
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::APK is not signed with the provided release key ($actual != $expected)"
+            exit 1
+          fi
+          if [ -n "$PINNED_CERT" ]; then
+            pinned=$(echo "$PINNED_CERT" | tr -d ': ' | tr 'A-F' 'a-f')
+            if [ "$actual" != "$pinned" ]; then
+              echo "::error::APK certificate $actual does not match the pinned SIGNING_CERT_SHA256 variable ($pinned)"
+              exit 1
+            fi
+            echo "Certificate matches pinned SIGNING_CERT_SHA256"
+          fi
+
+          "$buildTools/aapt2" dump badging "$apk" | head -1 | tee badging.txt
+          grep -q "name='$APPLICATION_ID'" badging.txt || { echo "::error::Wrong package name"; exit 1; }
+          grep -q "versionCode='$BUILD_NUMBER'" badging.txt || { echo "::error::Wrong versionCode"; exit 1; }
+          grep -q "versionName='$BUILD_NAME'" badging.txt || { echo "::error::Wrong versionName"; exit 1; }
+
+      - name: Rename apk and create checksum
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          apkName="SaberFork_v${BUILD_NAME}.apk"
+          mv build/app/outputs/flutter-apk/app-release.apk "output/$apkName"
+          cd output
+          sha256sum "$apkName" > "$apkName.sha256"
+          cat "$apkName.sha256"
+
+      - name: Remove keystore
+        if: always()
+        run: rm -f android/android.keystore android/key.properties
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SaberFork-Android
+          path: output/
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          notes="Saber Fork $BUILD_NAME (Build $BUILD_NUMBER)"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG" || true
+            message=$(git tag -l --format='%(contents)' "$TAG" | sed '/-----BEGIN PGP SIGNATURE-----/,$d')
+            if [ -n "$(echo "$message" | xargs)" ]; then notes="$message"; fi
+          fi
+          printf '%s\n' "$notes" > release_notes.md
+
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Saber Fork $BUILD_NAME" \
+            --notes-file release_notes.md \
+            --latest \
+            output/*

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saber/data/flavor_config.dart';
+import 'package:saber/data/fork_config.dart';
 import 'package:saber/data/is_this_a_test.dart';
 import 'package:saber/data/prefs.dart';
 import 'package:saber/data/version.dart';
@@ -21,7 +22,7 @@ class const AppInfo({super.key}) extends StatelessWidget {
     'https://github.com/saber-notes/saber/blob/main/LICENSE.md',
   );
   static final Uri releasesUrl = Uri.parse(
-    'https://github.com/saber-notes/saber/releases',
+    'https://github.com/${ForkConfig.repo}/releases',
   );
 
   static String get info => [

@@ -3,16 +3,20 @@ name: Build for iOS
 # Using instructions from
 # https://docs.flutter.dev/deployment/ios#create-a-build-archive-with-codemagic-cli-tools
 
+# Saber Fork: this upstream workflow is disabled in the fork and can only
+# be started manually. Original triggers (kept for easier upstream merges):
+# on:
+#   # Enable manual run
+#   workflow_dispatch:
+#   push:
+#     tags:
+#       - "**"
+#     branches:
+#       - "**"
+#     paths:
+#       - .github/workflows/ios.yml
 on:
-  # Enable manual run
   workflow_dispatch:
-  push:
-    tags:
-      - "**"
-    branches:
-      - "**"
-    paths:
-      - .github/workflows/ios.yml
 
 jobs:
   build-ios:

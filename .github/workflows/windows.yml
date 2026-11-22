@@ -1,16 +1,20 @@
 name: Build for Windows
 
+# Saber Fork: this upstream workflow is disabled in the fork and can only
+# be started manually. Original triggers (kept for easier upstream merges):
+# on:
+#   # Enable manual run
+#   workflow_dispatch:
+#   push:
+#     tags:
+#       - "**"
+#     branches:
+#       - "**"
+#     paths:
+#       - .github/workflows/windows.yml
+#       - installers/desktop_inno_script.iss
 on:
-  # Enable manual run
   workflow_dispatch:
-  push:
-    tags:
-      - "**"
-    branches:
-      - "**"
-    paths:
-      - .github/workflows/windows.yml
-      - installers/desktop_inno_script.iss
 
 jobs:
   build-windows:

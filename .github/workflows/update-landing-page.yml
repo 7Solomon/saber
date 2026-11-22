@@ -1,15 +1,19 @@
 name: Update saber_landing page
 
+# Saber Fork: this upstream workflow is disabled in the fork and can only
+# be started manually. Original triggers (kept for easier upstream merges):
+# on:
+#   # Enable manual run
+#   workflow_dispatch:
+#   push:
+#     tags:
+#       - "**"
+#     branches:
+#       - "**"
+#     paths:
+#       - .github/workflows/update-landing-page.yml
 on:
-  # Enable manual run
   workflow_dispatch:
-  push:
-    tags:
-      - "**"
-    branches:
-      - "**"
-    paths:
-      - .github/workflows/update-landing-page.yml
 
 jobs:
   dispatch:

@@ -1,13 +1,17 @@
 name: Check if the Flutter submodule is up to date
+# Saber Fork: this upstream workflow is disabled in the fork and can only
+# be started manually. Original triggers (kept for easier upstream merges):
+# on:
+#   workflow_dispatch:
+#   push:
+#     paths:
+#       - .github/workflows/check-flutter-submodule.yml
+#       - submodules/flutter
+#   schedule:
+#     # every 2 days at 5:58 am (random time to avoid spikes in GitHub Actions usage)
+#     - cron: "58 5 */2 * *"
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/check-flutter-submodule.yml
-      - submodules/flutter
-  schedule:
-    # every 2 days at 5:58 am (random time to avoid spikes in GitHub Actions usage)
-    - cron: "58 5 */2 * *"
 
 jobs:
   check-flutter-submodule:
