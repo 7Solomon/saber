@@ -90,29 +90,33 @@ void main() {
       expect(reloaded.readOnlyReason, isNull);
 
       // 4. Compare
+      //
+      // Note: Upstream sorts strokes by tool on every load
+      // (`EditorPage.sortStrokes`) with Dart's unstable `List.sort`, so the
+      // relative order of strokes with the same tool can change between
+      // loads. Therefore strokes are compared as a multiset per page and per
+      // tool. Everything else (incl. every point of every stroke) must match.
       expect(reloaded.pages.length, original.pages.length, reason: 'pages');
       for (var i = 0; i < original.pages.length; i++) {
         final a = original.pages[i];
         final b = reloaded.pages[i];
         expect(b.size, a.size, reason: 'page $i size');
         expect(b.strokes.length, a.strokes.length, reason: 'page $i strokes');
-        for (var s = 0; s < a.strokes.length; s++) {
-          expect(
-            b.strokes[s].runtimeType,
-            a.strokes[s].runtimeType,
-            reason: 'page $i stroke $s type',
-          );
-          expect(
-            b.strokes[s].points.length,
-            a.strokes[s].points.length,
-            reason: 'page $i stroke $s points',
-          );
-          expect(
-            b.strokes[s].toJson(),
-            a.strokes[s].toJson(),
-            reason: 'page $i stroke $s',
-          );
-        }
+        expect(
+          b.strokes.map((s) => s.toolId).toList(),
+          a.strokes.map((s) => s.toolId).toList(),
+          reason: 'page $i stroke tool order',
+        );
+        expect(
+          _canonicalStrokes(b.strokes.map((s) => s.toJson())),
+          _canonicalStrokes(a.strokes.map((s) => s.toJson())),
+          reason: 'page $i strokes (types, points, colors, ...)',
+        );
+        expect(
+          b.strokes.fold<int>(0, (sum, s) => sum + s.points.length),
+          a.strokes.fold<int>(0, (sum, s) => sum + s.points.length),
+          reason: 'page $i total points',
+        );
         expect(b.images.length, a.images.length, reason: 'page $i images');
         expect(
           b.backgroundImage == null,
@@ -121,10 +125,13 @@ void main() {
         );
       }
 
-      final (bson2, assets2) = reloaded.saveToBinary(currentPageIndex: null);
+      final (_, assets2) = reloaded.saveToBinary(currentPageIndex: null);
       final (json2, _) = reloaded.toJson();
-      expect(json2, json1, reason: 'Full note content must be identical');
-      expect(bson2, bson1, reason: 'Saved bytes must be identical');
+      expect(
+        _normalizeNoteJson(json2),
+        _normalizeNoteJson(json1),
+        reason: 'Full note content must be identical',
+      );
       expect(assets2.length, assets1.length, reason: 'asset count');
       for (var i = 0; i < assets1.length; i++) {
         expect(await assets2.getBytes(i), assetBytes1[i], reason: 'asset $i');
@@ -135,3 +142,29 @@ void main() {
     });
   }
 }
+
+/// Returns the strokes as sorted canonical strings (order-independent).
+List<String> _canonicalStrokes(Iterable<Map<String, dynamic>> strokes) =>
+    strokes.map(_canonical).toList()..sort();
+
+String _canonical(Object? value) => switch (value) {
+  final Map<dynamic, dynamic> map =>
+    '{${(map.keys.map((k) => k.toString()).toList()..sort()).map((k) => '$k:${_canonical(map[k])}').join(',')}}',
+  final List<dynamic> list => '[${list.map(_canonical).join(',')}]',
+  _ => value.toString(),
+};
+
+/// Sorts the strokes of every page canonically, see [_canonicalStrokes].
+Map<String, dynamic> _normalizeNoteJson(Map<String, dynamic> json) => {
+  ...json,
+  'z': [
+    for (final page in json['z'] as List)
+      {
+        ...(page as Map<String, dynamic>),
+        's': _canonicalStrokes(
+          (page['s'] as List? ?? const []).cast<Map<String, dynamic>>(),
+        ),
+        'i': _canonical(page['i']),
+      },
+  ],
+};
